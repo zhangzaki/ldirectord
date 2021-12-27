@@ -78,6 +78,5 @@ lvs的real server状态是在ldirectord启动之后，其变成一个守护进�
       notifempty
 
     }
-
    EOF
 
