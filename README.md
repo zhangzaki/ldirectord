@@ -56,7 +56,7 @@ lvs的real server状态是在ldirectord启动之后，其变成一个守护进�
     4.其他注意事项：
 
     如果配置了monitorfile，那么需要配置此日志文件的logrotate：
-
+    ```shell
     cat >/etc/logrotate.d/ldirectord_monitor<<EOF
 
     /var/log/ldirectord_monitor.log {
@@ -79,4 +79,5 @@ lvs的real server状态是在ldirectord启动之后，其变成一个守护进�
 
     }
    EOF
+   ```
 
