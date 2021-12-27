@@ -342,7 +342,7 @@ B<readdquiescent = >B<yes> | B<no>
 
 If I<yes>, then when real or failback servers are determined
 to be down, they are readded to the kernel's LVS table with weight 0 if
-they do not exist in the table. Setting the value to no, allows manually 
+they do not exist in the table. Setting the value to no, allows manually
 removing the realserver to manually disable all persistent connections.
 
 B<cleanstop = >B<yes> | B<no>
@@ -740,6 +740,7 @@ Jacob Rief <jacob.rief@tiscover.com>
 =cut
 
 use strict;
+use warnings;
 # Set defaults for configuration variables in the "set_defaults" function
 use vars qw(
 	    $VERSION_STR
@@ -2160,7 +2161,7 @@ sub parse_fallback
 	if ($parse_line =~ /(:(\d+|[A-Za-z0-9-_]+))?$/) {
 		# get host and port
 		$port=$2;
-		
+
 		$parse_line =~ s/(:(\d+|[A-Za-z0-9-_]+))?$//;
 		$server = $parse_line;
 	}
@@ -2543,7 +2544,7 @@ sub ld_start
 	}
 
 	for my $k (keys (%$server_down)) {
-		my $v = $server_down->{$k};	
+		my $v = $server_down->{$k};
 		if ($READDQUIESCENT eq "no") {
 			# Ensure that the server is initially added
 			service_set(@$v[0], @$v[1], "up", {force => 1});
@@ -3198,6 +3199,7 @@ sub check_sql
 			    "host=$$r{server};port=$port", $$v{login},
 			    $$v{passwd});
 	unless ($dbh) {
+        service_set($v, $r, "Failed to bind to $$r{server} with DBI->errstr:".DBI->errstr, {do_log => 1});
 		&ld_debug(2, "Failed to bind to $$r{server} with DBI->errstr\n");
 		check_sql_log_errstr("Failed to bind to $$r{server} with",
 				     DBI->errstr);
@@ -3206,6 +3208,7 @@ sub check_sql
 	$result--;
 	$sth = $dbh->prepare($query);
 	unless ($sth) {
+        service_set($v, $r, "The $$r{server} Error preparing statement:".$dbh->errstr, {do_log => 1});
 		&ld_debug(2, "Error preparing statement: $dbh->errstr\n");
 		check_sql_log_errstr("Error preparing statement:",
 				     $dbh->errstr);
@@ -3215,6 +3218,7 @@ sub check_sql
 	# Test to see if any errors are returned
 	$sth->execute;
 	if ($dbh->err) {
+        service_set($v, $r, "The $$r{server} Error executing statement:".$dbh->errstr, {do_log => 1});
 		&ld_debug(2, "Error executing statement: $dbh->errstr : $dbh->err\n");
 		check_sql_log_errstr("Error executing statement:",
 				     $dbh->errstr, $dbh->err);
@@ -3236,20 +3240,24 @@ sub check_sql
 	# (enabled) that says whether or not you want to actually use this
 	# in the pool from ldirector / ipvs, and disable them without
 	# actually turning off your sql server.
-	
+
 	$sth->execute;
 	if ($dbd eq "Oracle") { $sth->fetchrow_hashref() }
 	unless ($rows = $sth->rows) {
+        service_set($v, $r, "The $$r{server} Error executing statement, sth->rows return: ".$sth->rows, {do_log => 1});
 		check_sql_log_errstr("Error executing statement:",
 				     $dbh->errstr, $dbh->err);
 		goto err_finish;
 	}
 
+        my @ref = $sth->fetchrow_array();
 	# Actually look to see if there was data returned in this statement,
 	# else disable node
-	if($rows > 0) {
+	#if($rows > 0) {
+	if(($rows > 0) and ($ref[0] eq "ONLINE")) {
 		goto out;
 	} else {
+        service_set($v, $r, "The $$r{server} executing statement return: rows:$rows and result: $ref[0].", {do_log => 1});
 		goto err_finish;
 	}
 
@@ -3597,7 +3605,7 @@ sub check_dns
 
 	$$r{"request"} =~ m/^\/?(.*)/;
 	$request=$1;
-	
+
 	$server = &ld_strip_brackets($$r{server});
 
 	&ld_debug(2, "Checking dns: request=\"$request\" receive=\""
@@ -4772,7 +4780,7 @@ sub get_virtual_option
 	if ($nv->{"protocol"} eq "fwm" && $nv->{addressfamily} == AF_INET6) {
 		$cmdline .=  " -6";
 	}
-	
+
 	return $cmdline;
 }
 
@@ -5131,7 +5139,7 @@ sub ld_gethostservbyname{
 
 	my $ip;
 	my $port;
-	
+
 	if ($hostserv =~ /(:(\d+|[A-Za-z0-9-_]+))?$/) {
 		$port = $2;
 		$ip = $hostserv;
